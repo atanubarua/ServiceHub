@@ -26,16 +26,16 @@ class ServiceCategoryController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Category created successfully',
+            'message' => 'Service category created successfully',
             'category' => $category
-        ]);
+        ], 201);
     }
 
     public function show($id) {
         $category = ServiceCategory::find($id);
 
         if (empty($category)) {
-            return response()->json(['message' => 'Service category not found']);
+            return response()->json(['message' => 'Service category not found'], 404);
         }
 
         return response()->json($category);
@@ -45,7 +45,7 @@ class ServiceCategoryController extends Controller
         $category = ServiceCategory::find($id);
 
         if (empty($category)) {
-            return response()->json(['message' => 'Service category not found']);
+            return response()->json(['message' => 'Service category not found'], 404);
         }
 
         $category->delete();
