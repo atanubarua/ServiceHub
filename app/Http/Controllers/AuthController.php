@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Vendor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 
@@ -27,6 +29,60 @@ class AuthController extends Controller
         } catch (\Throwable $th) {
             logger('REGISTRATION_FAILED', ['payload' => $request->all(), 'message' => $th->getMessage(), 'trace' => $th->getTraceAsString()]);
             return response()->json(['message' => 'Registration failed'], 500);
+        }
+    }
+
+    public function vendorRegister(Request $request) {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email|max:255',
+            'password' => 'required|min:6|max:255',
+            'business_name' => 'required|string|max:255',
+            'phone' => 'required|string|min:10|max:20|unique:vendors,phone',
+            'address' => 'required|string|max:255',
+            'city' => 'required|string|max:100',
+            'logo' => 'nullable|file|mimetypes:image/jpeg,image/png,image/webp|max:2048'
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $user = User::create([
+                'name'     => $request->name,
+                'email'    => $request->email,
+                'password' => Hash::make($request->password)
+            ]);
+
+            $user->assignRole(User::ROLE_VENDOR);
+            $logoPath = null;
+
+            if ($request->hasFile('logo')) {
+                $logoPath = $request->file('logo')->store("vendors/{$user->id}", 'public');
+            }
+
+            $vendor = Vendor::create([
+                'user_id' => $user->id,
+                'business_name' => $request->business_name,
+                'logo' => $logoPath,
+                'phone' => $request->phone,
+                'address' => $request->address,
+                'city' => $request->city,
+                'status' => Vendor::STATUS_PENDING
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Vendor registered successfully. Pending approval',
+                'user' => $user,
+                'vendor' => $vendor
+            ], 201);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            logger('VENDOR_REGISTRATION_FAILED', ['payload' => $request->all(), 'message' => $th->getMessage(), 'trace' => $th->getTraceAsString()]);
+            return response()->json([
+                'message' => 'Something went wrong during registration.',
+            ], 500);
         }
     }
 
