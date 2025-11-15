@@ -74,8 +74,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'message' => 'Vendor registered successfully. Pending approval',
-                'user' => $user,
-                'vendor' => $vendor
+                'vendor' => $vendor->load('user')
             ], 201);
         } catch (\Throwable $th) {
             DB::rollBack();
