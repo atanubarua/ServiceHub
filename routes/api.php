@@ -11,6 +11,7 @@ Route::get('/users', function (Request $request) {
 })->middleware(['auth:api', 'role:admin']);
 
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/vendor/register', [AuthController::class, 'vendorRegister']);
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware(['auth:api', 'role:admin'])->group(function() {
