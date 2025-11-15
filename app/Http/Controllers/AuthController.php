@@ -93,6 +93,22 @@ class AuthController extends Controller
         ]);
 
         try {
+            $user = User::with('vendor')->where('email', $request->email)->first();
+
+            if (empty($user) || !Hash::check($request->password, $user->password)) {
+                return response()->json(['message' => 'Invalid email or password'], 400);
+            }
+
+            if ($user->hasRole(User::ROLE_VENDOR)) {
+                if (empty($user->vendor)) {
+                    return response()->json(['message' => 'Vendor profile not found'], 403);
+                }
+
+                if ($user->vendor->status != Vendor::STATUS_APPROVED) {
+                    return response()->json(['message' => 'Your vendor account is not approved yet'], 403);
+                }
+            }
+
             $response = Http::asForm()->post(config('services.passport.login_endpoint'), [
                 'grant_type' => 'password',
                 'client_id' => config('services.passport.client_id'),
