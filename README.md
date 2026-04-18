@@ -1,59 +1,320 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# ServiceHub
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**ServiceHub** is a multi-role REST API platform built with **Laravel 12** that connects service vendors with customers. It provides a full vendor lifecycle — from registration and admin approval to service listing — backed by secure OAuth2 authentication, role-based access control, queued email notifications, and image management.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Table of Contents
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Architecture & Roles](#architecture--roles)
+- [Database Schema](#database-schema)
+- [API Endpoints](#api-endpoints)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Running the Project](#running-the-project)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [License](#license)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Features
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### 🔐 Authentication & Authorization
+- User registration (customer) and vendor registration (with business profile)
+- OAuth2 token-based login via **Laravel Passport** (Password Grant)
+- Role-based access control via **Spatie Laravel Permission** (`admin`, `vendor`, `customer`)
+- Vendor login is blocked until the account is approved by an admin
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 🏪 Vendor Management (Admin)
+- List all vendors with pagination
+- View vendor details
+- Approve or reject vendor applications
+- Soft-delete vendors
+- Automated email notification sent to vendors on approval/rejection via a queued listener
 
-## Laravel Sponsors
+### 🛠️ Service Management (Vendor)
+- Full CRUD for services (create, read, update, delete)
+- Each service belongs to a category and a vendor
+- Supports multiple image uploads per service (JPEG, PNG, WebP; max 2 MB each)
+- Services are uniquely named per vendor and auto-generate SEO-friendly slugs
+- Active / inactive status management
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### 📂 Service Categories (Admin)
+- Admins can create, update, and delete service categories
+- Vendors can view the category list to use when listing services
+- Slugified, with optional description and status toggle
 
-### Premium Partners
+### 📧 Event-Driven Email Notifications
+- `VendorStatusUpdatedEvent` fires when a vendor is approved or rejected
+- `SendVendorStatusEmailListener` handles the event and dispatches the appropriate queued email (`VendorApprovedMail` / `VendorRejectedMail`)
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+---
 
-## Contributing
+## Tech Stack
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+| Layer | Technology |
+|---|---|
+| Framework | Laravel 12 |
+| Language | PHP 8.2+ |
+| Authentication | Laravel Passport (OAuth2) |
+| Authorization | Spatie Laravel Permission |
+| Database | MySQL |
+| Queue | Database queue driver |
+| Mail | Configurable (SMTP / Mailgun / log) |
+| Asset Bundling | Vite + Tailwind CSS v4 |
+| Testing | Pest PHP |
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Architecture & Roles
 
-## Security Vulnerabilities
+```
+┌──────────────┐       ┌──────────────┐       ┌──────────────┐
+│   Customer   │       │    Vendor    │       │    Admin     │
+│  (register,  │       │  (register,  │       │  (manage     │
+│    login)    │       │   login,     │       │  vendors &   │
+│              │       │   services)  │       │  categories) │
+└──────────────┘       └──────────────┘       └──────────────┘
+        │                     │                      │
+        └─────────────────────┴──────────────────────┘
+                              │
+                    Laravel REST API (Passport)
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Vendor Lifecycle
+
+```
+Register → Pending → Admin Reviews → Approved ✅ / Rejected ❌
+                                          │               │
+                                     Email sent       Email sent
+                                     (queued)         (queued)
+                                          │
+                                   Can now login
+                                   & list services
+```
+
+---
+
+## Database Schema
+
+| Table | Key Columns |
+|---|---|
+| `users` | id, name, email, password |
+| `vendors` | id, user_id (FK), business_name, logo, phone, address, city, status (0=pending, 1=approved, 2=rejected, 3=suspended), deleted_at |
+| `service_categories` | id, name, slug, description, status |
+| `services` | id, vendor_id (FK), category_id (FK), name, slug, short_description, description, price, status (0=inactive, 1=active), deleted_at |
+| `service_images` | id, service_id (FK), path, alt_text |
+| `oauth_*` | Passport OAuth2 tables |
+| `permissions` / `roles` | Spatie permission tables |
+
+---
+
+## API Endpoints
+
+### Public Routes
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/register` | Register a new customer account |
+| `POST` | `/api/vendor/register` | Register a new vendor (pending approval) |
+| `POST` | `/api/login` | Login and receive an OAuth2 access token |
+
+### Admin Routes — `auth:api` + `role:admin`
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/users` | List all users |
+| `GET` | `/api/vendors` | List all vendors (paginated) |
+| `GET` | `/api/vendors/{id}` | Get a specific vendor |
+| `DELETE` | `/api/vendors/{id}` | Soft-delete a vendor |
+| `PATCH` | `/api/vendors/{id}/approve` | Approve a vendor |
+| `PATCH` | `/api/vendors/{id}/reject` | Reject a vendor |
+| `POST` | `/api/service-categories` | Create a service category |
+| `PUT/PATCH` | `/api/service-categories/{id}` | Update a service category |
+| `DELETE` | `/api/service-categories/{id}` | Delete a service category |
+
+### Vendor Routes — `auth:api` + `role:vendor`
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/services` | List all services for authenticated vendor |
+| `POST` | `/api/services` | Create a new service with images |
+| `GET` | `/api/services/{id}` | Get a specific service |
+| `PUT/PATCH` | `/api/services/{id}` | Update a service |
+| `DELETE` | `/api/services/{id}` | Delete a service |
+
+### Shared Routes — `auth:api` + `role:admin|vendor`
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/service-categories` | List all service categories |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- PHP >= 8.2
+- Composer
+- Node.js >= 18 & npm
+- MySQL
+- A mail service (or use `log` driver for local development)
+
+### Installation
+
+**1. Clone the repository**
+
+```bash
+git clone https://github.com/your-username/ServiceHub.git
+cd ServiceHub
+```
+
+**2. Install PHP dependencies**
+
+```bash
+composer install
+```
+
+**3. Set up environment**
+
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+**4. Configure your database** in `.env`:
+
+```env
+DB_DATABASE=servicehub
+DB_USERNAME=your_db_user
+DB_PASSWORD=your_db_password
+```
+
+**5. Run migrations and seed roles**
+
+```bash
+php artisan migrate
+php artisan db:seed
+```
+
+**6. Install Passport and create OAuth client**
+
+```bash
+php artisan passport:install
+```
+
+Copy the generated **Password Grant Client ID and Secret** into your `.env`:
+
+```env
+PASSPORT_CLIENT_ID=your_client_id
+PASSPORT_CLIENT_SECRET=your_client_secret
+PASSPORT_LOGIN_ENDPOINT=oauth/token
+```
+
+**7. Install frontend dependencies**
+
+```bash
+npm install
+```
+
+---
+
+## Environment Variables
+
+Key variables to configure in `.env`:
+
+| Variable | Description |
+|---|---|
+| `APP_URL` | Base URL of your application |
+| `DB_*` | MySQL database credentials |
+| `QUEUE_CONNECTION` | Set to `database` (default) or `redis` |
+| `MAIL_MAILER` | Mail driver (`smtp`, `mailgun`, `log`) |
+| `MAIL_FROM_ADDRESS` | Sender email address |
+| `PASSPORT_CLIENT_ID` | OAuth2 Password Grant client ID |
+| `PASSPORT_CLIENT_SECRET` | OAuth2 Password Grant client secret |
+| `PASSPORT_LOGIN_ENDPOINT` | OAuth token endpoint (default: `oauth/token`) |
+
+---
+
+## Running the Project
+
+### One-command setup (installs, migrates, and builds everything)
+
+```bash
+composer setup
+```
+
+### Start the development server (API + Queue + Vite)
+
+```bash
+composer dev
+```
+
+This runs three concurrent processes:
+- `php artisan serve` — Laravel dev server
+- `php artisan queue:listen` — processes queued emails
+- `npm run dev` — Vite asset bundler
+
+---
+
+## Testing
+
+```bash
+composer test
+```
+
+Or directly:
+
+```bash
+php artisan test
+```
+
+Tests are written with [Pest PHP](https://pestphp.com/).
+
+---
+
+## Project Structure
+
+```
+app/
+├── Events/
+│   └── VendorStatusUpdatedEvent.php   # Fired on vendor approve/reject
+├── Http/
+│   └── Controllers/
+│       ├── Admin/
+│       │   └── VendorController.php   # Admin vendor management
+│       ├── Vendor/
+│       │   └── ServiceController.php  # Vendor service CRUD
+│       ├── AuthController.php         # Register & login
+│       └── ServiceCategoryController.php
+├── Listeners/
+│   └── SendVendorStatusEmailListener.php  # Sends queued emails
+├── Mail/
+│   ├── VendorApprovedMail.php
+│   └── VendorRejectedMail.php
+└── Models/
+    ├── User.php
+    ├── Vendor.php
+    ├── Service.php
+    ├── ServiceCategory.php
+    └── ServiceImage.php
+
+database/
+├── migrations/        # All table schemas
+└── seeders/
+    ├── DatabaseSeeder.php
+    └── RoleSeeder.php # Seeds admin, vendor, customer roles
+
+routes/
+└── api.php            # All API route definitions
+```
+
+---
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
