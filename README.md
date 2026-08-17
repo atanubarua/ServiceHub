@@ -169,7 +169,7 @@ Register → Pending → Admin Reviews → Approved ✅ / Rejected ❌
 **1. Clone the repository**
 
 ```bash
-git clone https://github.com/your-username/ServiceHub.git
+git clone https://github.com/atanubarua/ServiceHub.git
 cd ServiceHub
 ```
 
